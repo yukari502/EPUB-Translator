@@ -1,7 +1,7 @@
 {
-  "name": "temp_vite",
+  "name": "epub-translator",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -12,7 +12,7 @@
   },
   "build": {
     "appId": "com.openeub.translator",
-    "productName": "Open Immersive Reader",
+    "productName": "EPUB Translator",
     "directories": {
       "output": "release"
     },

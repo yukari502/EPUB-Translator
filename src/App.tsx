@@ -180,8 +180,11 @@ function App() {
       {/* Top Navbar */}
       <header className="navbar">
         <div className="nav-brand">
+          <button className="icon-btn" onClick={() => setSidebarOpen(!sidebarOpen)} style={{ marginRight: '8px' }} title="Toggle Sidebar">
+            <Menu size={20} />
+          </button>
           <BookOpen className="brand-icon" />
-          <h1>Open Immersive Reader</h1>
+          <h1>EPUB Translator</h1>
         </div>
         <div className="nav-actions">
           <button className={`icon-btn ${isLogsOpen ? 'active-icon' : ''}`} onClick={() => setIsLogsOpen(!isLogsOpen)} title="Debug Logs">
@@ -277,7 +280,7 @@ function App() {
           ) : (
             <div className="empty-state">
               <BookOpen size={64} className="empty-icon" />
-              <h2>Welcome to Open Immersive Reader</h2>
+              <h2>Welcome to EPUB Translator</h2>
               <p>Upload an EPUB file to start reading and translating in dual-language mode.</p>
               <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
                 <button className="btn btn-primary btn-large" onClick={() => fileInputRef.current?.click()}>

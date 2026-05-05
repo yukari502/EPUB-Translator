@@ -29,88 +29,96 @@ export function addLog(message: string, type: 'info' | 'error' | 'success' = 'in
   window.dispatchEvent(event);
 }
 
-export async function translateTextBatch(texts: string[], settings: TranslationSettings): Promise<string[]> {
+export async function translateTextBatch(texts: string[], settings: TranslationSettings, maxRetries = 3): Promise<string[]> {
   if (texts.length === 0) return [];
 
   const separator = '\n\n%%\n\n';
   const combinedText = texts.join(separator);
 
-  try {
-    let resultText = '';
-    const isCustomOrOpenAI = settings.provider === 'openai' || settings.provider === 'custom' || settings.provider === 'deepseek';
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      let resultText = '';
+      const isCustomOrOpenAI = settings.provider === 'openai' || settings.provider === 'custom' || settings.provider === 'deepseek';
 
-    if (isCustomOrOpenAI) {
-      addLog(`Sending request to ${settings.provider} API (Model: ${settings.model || (settings.provider === 'deepseek' ? 'deepseek-v4-flash' : 'gpt-3.5-turbo')})`, 'info');
+      if (isCustomOrOpenAI) {
+        if (attempt === 1) addLog(`Sending request to ${settings.provider} API (Model: ${settings.model || (settings.provider === 'deepseek' ? 'deepseek-v4-flash' : 'gpt-3.5-turbo')})`, 'info');
 
-      let url = settings.apiUrl;
-      if (!url) {
-        if (settings.provider === 'openai') url = 'https://api.openai.com/v1/chat/completions';
-        else if (settings.provider === 'deepseek') url = 'https://api.deepseek.com/chat/completions';
-        else url = 'https://api.openai.com/v1/chat/completions'; // custom fallback
+        let url = settings.apiUrl;
+        if (!url) {
+          if (settings.provider === 'openai') url = 'https://api.openai.com/v1/chat/completions';
+          else if (settings.provider === 'deepseek') url = 'https://api.deepseek.com/chat/completions';
+          else url = 'https://api.openai.com/v1/chat/completions'; // custom fallback
+        }
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${settings.apiKey}`
+          },
+          body: JSON.stringify({
+            model: settings.model || (settings.provider === 'deepseek' ? 'deepseek-v4-flash' : 'gpt-3.5-turbo'),
+            temperature: 0,
+            messages: [
+              { role: 'system', content: getSystemPrompt(settings.targetLanguage || 'Chinese') },
+              { role: 'user', content: combinedText }
+            ]
+          })
+        });
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`API Error: ${response.status} - ${errText}`);
+        }
+        const data = await response.json();
+        resultText = data.choices[0].message.content.trim();
+        addLog(`Received successful response from ${settings.provider} API`, 'success');
+      }
+      else if (settings.provider === 'gemini') {
+        if (attempt === 1) addLog(`Sending request to Gemini API (Model: ${settings.model || 'gemini-1.5-pro'})`, 'info');
+        const url = settings.apiUrl || `https://generativelanguage.googleapis.com/v1beta/models/${settings.model || 'gemini-1.5-pro'}:generateContent?key=${settings.apiKey}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: getSystemPrompt(settings.targetLanguage || 'Chinese') }] },
+            contents: [{ parts: [{ text: combinedText }] }],
+            generationConfig: { temperature: 0 }
+          })
+        });
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Gemini API Error: ${response.status} - ${errText}`);
+        }
+        const data = await response.json();
+        resultText = data.candidates[0].content.parts[0].text.trim();
+        addLog(`Received successful response from Gemini API`, 'success');
+      } else {
+        // Mock
+        await new Promise(resolve => setTimeout(resolve, 500));
+        resultText = texts.map(t => `[译] ${t}`).join(separator);
+        if (attempt === 1) addLog(`Mock translation generated for testing`, 'info');
       }
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${settings.apiKey}`
-        },
-        body: JSON.stringify({
-          model: settings.model || (settings.provider === 'deepseek' ? 'deepseek-v4-flash' : 'gpt-3.5-turbo'),
-          temperature: 0,
-          messages: [
-            { role: 'system', content: getSystemPrompt(settings.targetLanguage || 'Chinese') },
-            { role: 'user', content: combinedText }
-          ]
-        })
-      });
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`API Error: ${response.status} - ${errText}`);
+      const translatedParts = resultText.split('%%').map(s => s.trim());
+      if (translatedParts.length !== texts.length) {
+        addLog(`Translation part count mismatch: expected ${texts.length}, got ${translatedParts.length}. Adjusting...`, 'error');
+        while (translatedParts.length < texts.length) {
+          translatedParts.push('[Translation Missing]');
+        }
       }
-      const data = await response.json();
-      resultText = data.choices[0].message.content.trim();
-      addLog(`Received successful response from ${settings.provider} API`, 'success');
+      return translatedParts.slice(0, texts.length);
+
+    } catch (err: any) {
+      if (attempt === maxRetries) {
+        addLog(`Translation failed after ${maxRetries} attempts: ${err.message}`, 'error');
+        return texts.map(() => `[Translation Failed]`);
+      }
+      addLog(`Attempt ${attempt} failed (${err.message}). Retrying...`, 'info');
+      // Wait before retrying (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
     }
-    else if (settings.provider === 'gemini') {
-      addLog(`Sending request to Gemini API (Model: ${settings.model || 'gemini-1.5-pro'})`, 'info');
-      const url = settings.apiUrl || `https://generativelanguage.googleapis.com/v1beta/models/${settings.model || 'gemini-1.5-pro'}:generateContent?key=${settings.apiKey}`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: getSystemPrompt(settings.targetLanguage || 'Chinese') }] },
-          contents: [{ parts: [{ text: combinedText }] }],
-          generationConfig: { temperature: 0 }
-        })
-      });
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Gemini API Error: ${response.status} - ${errText}`);
-      }
-      const data = await response.json();
-      resultText = data.candidates[0].content.parts[0].text.trim();
-      addLog(`Received successful response from Gemini API`, 'success');
-    } else {
-      // Mock
-      await new Promise(resolve => setTimeout(resolve, 500));
-      resultText = texts.map(t => `[译] ${t}`).join(separator);
-      addLog(`Mock translation generated for testing`, 'info');
-    }
-
-    const translatedParts = resultText.split('%%').map(s => s.trim());
-    if (translatedParts.length !== texts.length) {
-      addLog(`Translation part count mismatch: expected ${texts.length}, got ${translatedParts.length}. Adjusting...`, 'error');
-      while (translatedParts.length < texts.length) {
-        translatedParts.push('[Translation Missing]');
-      }
-    }
-    return translatedParts.slice(0, texts.length);
-
-  } catch (err: any) {
-    addLog(`Translation error: ${err.message}`, 'error');
-    return texts.map(() => `[Translation Failed]`);
   }
+  return texts.map(() => `[Translation Failed]`);
 }
 
 export async function translateHtmlDocument(htmlString: string, settings: TranslationSettings): Promise<string> {
@@ -170,6 +178,12 @@ export async function translateHtmlDocument(htmlString: string, settings: Transl
     for (let j = 0; j < chunk.elements.length; j++) {
       const el = chunk.elements[j];
       const translatedText = translatedTexts[j] || '[Translation Missing]';
+
+      if (translatedText === '[Translation Failed]' || translatedText === '[Translation Missing]') {
+        // If it failed, keep original text and do NOT mark as translated.
+        // This allows the user to click "Translate Chapter" again to retry only the failed parts.
+        continue;
+      }
 
       if (settings.mode === 'bilingual') {
         const transEl = doc.createElement(el.tagName);
