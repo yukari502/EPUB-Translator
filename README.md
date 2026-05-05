@@ -1,48 +1,61 @@
-# Open Immersive Reader
+# EPUB Translator
 
-An open-source, beautifully designed web application that replicates the EPUB translation functionality of Immersive Translate.
+A powerful, high-performance, and immersive desktop EPUB translation tool built with Electron, React, and Vite. Designed to bypass CORS restrictions natively, it allows users to translate EPUB books seamlessly using the free Google Translate Web API, DeepSeek, OpenAI, Gemini, or any custom API—all without relying on heavy backend proxies.
 
-## Features
+## 🚀 Features
 
-- **EPUB Parsing**: Upload any valid `.epub` file and automatically parse its table of contents and spine.
-- **Modern Reading Interface**: A beautiful, distraction-free reading environment with a navigable sidebar.
-- **Dual-Language Translation**: Emulates the paragraph-by-paragraph bilingual reading experience.
-- **Export**: After translating, you can download the modified `.epub` file containing the dual-language text.
-- **Premium Aesthetics**: Designed with smooth gradients, glassmorphism elements, and modern typography (Inter).
+- **Immersive Bilingual Reading & Translating**: Displays beautiful translation blocks embedded right beneath the original text. You can also toggle translations or switch to "Translate Only" mode.
+- **Native Desktop App**: Built on Electron, unlocking direct requests to APIs (like Google Translate Web) by disabling `webSecurity`, completely evading browser CORS limitations.
+- **High Concurrency & Auto-Retry**: Achieves massive throughput with customizable batch configurations. Includes an intelligent Exponential Backoff strategy to gracefully handle API rate-limit errors and retry failed chunks automatically.
+- **Real-Time Translation Streaming**: Watch your text turn into your target language right before your eyes! Translations are piped into the DOM in real-time, preserving your exact scroll position and minimizing flickering.
+- **Pause & Resume**: Large book? Stop the translation at any time with the "Pause" feature using native `AbortController` functionality. Resume exactly where you left off.
+- **Robust Original HTML Parsing**: Safely unpacks, cleans, translates, and repackages EPUB files without destroying structural integrity or original images. Retains complex Japanese vertical layouts and rubys.
+- **Free Google Web API Protection**: Automatically limits concurrency when using free web APIs to protect your IP from anti-bot CAPTCHA bans.
+- **Instant Toggle (Revert)**: Need to check the original text? Hit the "Show Original" button to instantly toggle between original and translated content without losing data.
 
-## Tech Stack
+## 📦 Quick Start
 
-- **React & TypeScript**: For a robust and type-safe frontend.
-- **Vite**: Lightning-fast build tool and development server.
-- **JSZip**: Handles the extraction and repacking of the EPUB archive.
-- **Lucide React**: Clean and modern iconography.
+### Prerequisites
+- Node.js (v18 or higher recommended)
+- npm or yarn
 
-## Getting Started
+### Installation
 
-1. Navigate to the project directory:
-   ```bash
-   cd d:\Temp_not_synced\translator
-   ```
+1. Install dependencies:
+```bash
+npm install
+```
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+2. Start the development server (Live Reloading):
+```bash
+npm run dev
+```
 
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
+### Building for Release
 
-4. Open your browser and navigate to `http://localhost:5173/`.
+To package the application for your operating system:
+```bash
+npm run build
+```
+The packaged executable (e.g., `.exe` for Windows) will be generated inside the `dist/` directory (the exact path depends on electron-builder). 
 
-## How to Use
+## 🛠️ Usage
 
-1. Click on **"Open EPUB"** to select a local `.epub` file, or use the **"Try Test EPUB"** button to load the pre-configured `minimal.epub`.
-2. Browse through the chapters using the left sidebar.
-3. Click the **"Translate"** button on the top right to apply the dual-language translation to the current chapter. (Currently, this uses a mock translation function. You can replace it with API calls to OpenAI, Gemini, or Google Translate in `src/utils/translator.ts`).
-4. Once you are satisfied with the translation, click **"Export"** to download the new `.epub` file.
+1. **Load Book**: Click the "Open EPUB" button to load your local `.epub` file.
+2. **Settings**: Click the gear icon to open Settings. 
+   - Choose your translation provider (e.g., Google Translate Web Free, DeepSeek, OpenAI).
+   - Insert your API Key if required.
+   - Adjust concurrency levels based on your token limits.
+3. **Translate**: Select a chapter from the sidebar and click "Translate Chapter", or click "Translate All" for a full book overhaul. 
+4. **Export**: Click "Export" to download the finalized, fully translated `.epub` file directly to your system.
 
-## Customizing the Translator
+## 🛡️ Architecture & Tech Stack
 
-To add real translation capabilities, edit the `translateText` function in `src/utils/translator.ts`. You can integrate any translation API here to replace the simulated mock translations.
+- **Frontend**: React + TypeScript + Vite
+- **Desktop Runtime**: Electron + `vite-plugin-electron`
+- **EPUB Engine**: JSZip (for unpacking/repacking XML architecture)
+- **Styling**: Pure CSS (minimalist and easily modifiable)
+
+## 📄 License
+
+MIT License

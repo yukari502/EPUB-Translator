@@ -206,7 +206,7 @@ export async function translateHtmlDocument(htmlString: string, settings: Transl
   }
 
   const chunkSize = settings.paragraphsPerRequest || 4; // Use user setting or default
-  const chunks = [];
+  const chunks: {texts: string[], elements: Element[]}[] = [];
   for (let i = 0; i < textsToTranslate.length; i += chunkSize) {
     chunks.push({
       texts: textsToTranslate.slice(i, i + chunkSize),
