@@ -2,6 +2,8 @@
   "name": "epub-translator",
   "private": true,
   "version": "1.0.0",
+  "license": "MIT",
+  "author": "yukari502",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
