@@ -13,6 +13,9 @@ export class EpubParser {
   basePath: string = '';
   manifest: Record<string, string> = {}; // id to href
   spine: string[] = []; // ids
+  private originalFiles: Record<string, string> = {};
+  private translatedFiles: Record<string, string> = {};
+  private isShowingOriginal: Record<string, boolean> = {};
   
   constructor(zip: JSZip) {
     this.zip = zip;
@@ -93,7 +96,39 @@ export class EpubParser {
   async getFileText(path: string): Promise<string> {
     const file = this.getFileByPath(path);
     if (!file) throw new Error(`File not found in ZIP: ${path}`);
-    return await file.async('text');
+    const text = await file.async('text');
+    if (!(path in this.originalFiles)) {
+      this.originalFiles[path] = text;
+    }
+    return text;
+  }
+
+  saveTranslation(path: string, translatedText: string) {
+    this.translatedFiles[path] = translatedText;
+    this.isShowingOriginal[path] = false;
+    this.updateFile(path, translatedText);
+  }
+
+  toggleTranslation(path: string): { text: string, showingOriginal: boolean } | null {
+    if (!(path in this.originalFiles) || !(path in this.translatedFiles)) {
+      return null;
+    }
+    const currentlyOriginal = this.isShowingOriginal[path] || false;
+    const newShowingOriginal = !currentlyOriginal;
+    
+    const newText = newShowingOriginal ? this.originalFiles[path] : this.translatedFiles[path];
+    this.isShowingOriginal[path] = newShowingOriginal;
+    this.updateFile(path, newText);
+    
+    return { text: newText, showingOriginal: newShowingOriginal };
+  }
+
+  isOriginal(path: string): boolean {
+    return this.isShowingOriginal[path] || false;
+  }
+
+  hasTranslation(path: string): boolean {
+    return path in this.translatedFiles;
   }
 
   async getExportZip(): Promise<Blob> {

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Download, Languages, BookOpen, ChevronLeft, Menu, Settings, X, Terminal } from 'lucide-react';
+import { Upload, Download, Languages, BookOpen, ChevronLeft, Menu, Settings, X, Terminal, Undo } from 'lucide-react';
 import { EpubParser } from './utils/epub';
 import { translateHtmlDocument, type TranslationSettings } from './utils/translator';
 import './App.css';
@@ -12,6 +12,8 @@ function App() {
   const [isTranslating, setIsTranslating] = useState(false);
   const [isTranslatingAll, setIsTranslatingAll] = useState(false);
   const [translationProgress, setTranslationProgress] = useState<{current: number, total: number} | null>(null);
+  const [showingOriginal, setShowingOriginal] = useState<boolean>(false);
+  const [hasTranslation, setHasTranslation] = useState<boolean>(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLogsOpen, setIsLogsOpen] = useState(false);
@@ -19,7 +21,7 @@ function App() {
   
   const [settings, setSettings] = useState<TranslationSettings>({
     mode: 'translate-only',
-    provider: 'mock',
+    provider: 'google-web',
     apiKey: '',
     apiUrl: '',
     model: '',
@@ -30,6 +32,14 @@ function App() {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const handleCancelTranslation = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  };
 
   useEffect(() => {
     const handleLog = (e: any) => {
@@ -69,6 +79,8 @@ function App() {
     try {
       const text = await parser.getFileText(path);
       setFileContent(text);
+      setShowingOriginal(parser.isOriginal(path));
+      setHasTranslation(parser.hasTranslation(path));
     } catch (err) {
       console.error(err);
       setFileContent('Error loading file content.');
@@ -78,15 +90,37 @@ function App() {
   const handleTranslate = async () => {
     if (!epubParser || !activeFile || !fileContent) return;
     setIsTranslating(true);
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    
     try {
-      const translatedHtml = await translateHtmlDocument(fileContent, settings);
+      const translatedHtml = await translateHtmlDocument(fileContent, { 
+        ...settings, 
+        signal: controller.signal,
+        onProgress: (partialHtml) => setFileContent(partialHtml)
+      });
+      if (controller.signal.aborted) return;
       setFileContent(translatedHtml);
-      epubParser.updateFile(activeFile, translatedHtml);
-    } catch (err) {
-      console.error(err);
-      alert('Translation failed.');
+      epubParser.saveTranslation(activeFile, translatedHtml);
+      setShowingOriginal(false);
+      setHasTranslation(true);
+    } catch (err: any) {
+      if (err.message !== 'Translation aborted by user') {
+        console.error(err);
+        alert('Translation failed.');
+      }
     } finally {
       setIsTranslating(false);
+      if (abortControllerRef.current === controller) abortControllerRef.current = null;
+    }
+  };
+
+  const handleToggleTranslation = () => {
+    if (!epubParser || !activeFile) return;
+    const result = epubParser.toggleTranslation(activeFile);
+    if (result) {
+      setFileContent(result.text);
+      setShowingOriginal(result.showingOriginal);
     }
   };
 
@@ -96,26 +130,46 @@ function App() {
     
     setIsTranslatingAll(true);
     setTranslationProgress({ current: 0, total: spineFiles.length });
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     
     try {
       for (let i = 0; i < spineFiles.length; i++) {
+        if (controller.signal.aborted) break;
         const path = spineFiles[i];
         const text = await epubParser.getFileText(path);
-        const translatedHtml = await translateHtmlDocument(text, settings);
-        epubParser.updateFile(path, translatedHtml);
+        const translatedHtml = await translateHtmlDocument(text, { 
+          ...settings, 
+          signal: controller.signal,
+          onProgress: (partialHtml) => {
+            if (path === activeFile) {
+              setFileContent(partialHtml);
+            }
+          }
+        });
+        if (controller.signal.aborted) break;
+        
+        epubParser.saveTranslation(path, translatedHtml);
         
         if (path === activeFile) {
           setFileContent(translatedHtml);
+          setShowingOriginal(false);
+          setHasTranslation(true);
         }
         setTranslationProgress({ current: i + 1, total: spineFiles.length });
       }
-      alert('Full book translation complete! You can now Export the book.');
-    } catch (err) {
-      console.error(err);
-      alert('Failed to translate entire book.');
+      if (!controller.signal.aborted) {
+        alert('Full book translation complete! You can now Export the book.');
+      }
+    } catch (err: any) {
+      if (err.message !== 'Translation aborted by user') {
+        console.error(err);
+        alert('Failed to translate entire book.');
+      }
     } finally {
       setIsTranslatingAll(false);
       setTranslationProgress(null);
+      if (abortControllerRef.current === controller) abortControllerRef.current = null;
     }
   };
 
@@ -143,6 +197,14 @@ function App() {
         try {
           let displayContent = await epubParser.renderForDisplay(activeFile, fileContent);
           const doc = iframeRef.current.contentDocument;
+          const win = iframeRef.current.contentWindow;
+          let scrollY = 0;
+          let scrollX = 0;
+          if (win) {
+            scrollY = win.scrollY;
+            scrollX = win.scrollX;
+          }
+
           if (doc) {
             doc.open();
             displayContent = displayContent.replace('</head>', `
@@ -166,6 +228,13 @@ function App() {
             </head>`);
             doc.write(displayContent);
             doc.close();
+            
+            if (win && scrollY > 0) {
+              // Wait for layout to restore scroll position to avoid jumpiness during realtime update
+              setTimeout(() => {
+                win.scrollTo(scrollX, scrollY);
+              }, 10);
+            }
           }
         } catch (err) {
           console.error("Failed to render iframe content", err);
@@ -202,24 +271,54 @@ function App() {
             </>
           ) : (
             <>
+              {isTranslatingAll ? (
+                <button 
+                  className="btn btn-primary" 
+                  style={{ backgroundColor: '#dc3545', borderColor: '#dc3545' }}
+                  onClick={handleCancelTranslation} 
+                  title="Pause translating entire book"
+                >
+                  <X size={18} />
+                  Pause ({translationProgress?.current}/{translationProgress?.total})
+                </button>
+              ) : (
+                <button 
+                  className="btn btn-primary" 
+                  onClick={handleTranslateAll} 
+                  disabled={isTranslating}
+                  title="Translate entire book"
+                >
+                  <Languages size={18} />
+                  Translate All
+                </button>
+              )}
+              {isTranslating ? (
+                <button 
+                  className="btn btn-primary" 
+                  style={{ backgroundColor: '#dc3545', borderColor: '#dc3545' }}
+                  onClick={handleCancelTranslation} 
+                >
+                  <X size={18} />
+                  Pause
+                </button>
+              ) : (
+                <button 
+                  className="btn btn-primary" 
+                  onClick={handleTranslate} 
+                  disabled={isTranslatingAll}
+                >
+                  <Languages size={18} />
+                  Translate Chapter
+                </button>
+              )}
               <button 
-                className="btn btn-primary" 
-                onClick={handleTranslateAll} 
-                disabled={isTranslating || isTranslatingAll}
-                title="Translate entire book"
+                className={`btn ${showingOriginal ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={handleToggleTranslation} 
+                disabled={isTranslating || isTranslatingAll || !hasTranslation}
+                title="Toggle between Original and Translated text"
               >
-                <Languages size={18} />
-                {isTranslatingAll && translationProgress 
-                  ? `Translating All (${translationProgress.current}/${translationProgress.total})...` 
-                  : 'Translate All'}
-              </button>
-              <button 
-                className="btn btn-primary" 
-                onClick={handleTranslate} 
-                disabled={isTranslating || isTranslatingAll}
-              >
-                <Languages size={18} />
-                {isTranslating ? 'Translating...' : 'Translate Chapter'}
+                <Undo size={18} />
+                {showingOriginal ? 'Show Translation' : 'Show Original'}
               </button>
               <button className="btn btn-secondary" onClick={handleExport} disabled={isTranslatingAll}>
                 <Download size={18} />
@@ -361,7 +460,7 @@ function App() {
                   onChange={e => setSettings({...settings, provider: e.target.value as any})}
                   className="form-control"
                 >
-                  <option value="mock">Mock (Testing)</option>
+                  <option value="google-web">Google Translate (Web Free)</option>
                   <option value="deepseek">DeepSeek (Official)</option>
                   <option value="openai">OpenAI (Official)</option>
                   <option value="gemini">Google Gemini</option>
@@ -369,7 +468,7 @@ function App() {
                 </select>
               </div>
 
-              {settings.provider !== 'mock' && (
+              {settings.provider !== 'google-web' && (
                 <>
                   <div className="form-group">
                     <label>API Key</label>
@@ -425,6 +524,11 @@ function App() {
                   />
                   <small style={{display: 'block', marginTop: '4px', color: '#888', fontSize: '12px'}}>
                     Number of API requests to send in parallel. High values speed up translation but might hit API rate limits (e.g. 429 Too Many Requests).
+                    {settings.provider === 'google-web' && (
+                      <span style={{color: '#dc3545', fontWeight: 'bold', display: 'block', marginTop: '4px'}}>
+                        ⚠️ Note: High concurrency on Google Translate will cause you to be identified as a bot. Concurrency is internally capped to 3 to prevent IP bans.
+                      </span>
+                    )}
                   </small>
                 </div>
 

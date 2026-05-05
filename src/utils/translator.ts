@@ -1,12 +1,14 @@
 export interface TranslationSettings {
   mode: 'bilingual' | 'translate-only';
-  provider: 'mock' | 'openai' | 'gemini' | 'custom' | 'deepseek';
+  provider: 'google-web' | 'openai' | 'gemini' | 'custom' | 'deepseek';
   apiKey: string;
   apiUrl: string;
   model: string;
   targetLanguage: string;
   maxConcurrency?: number;
   paragraphsPerRequest?: number;
+  signal?: AbortSignal;
+  onProgress?: (partialHtml: string) => void;
 }
 
 function getSystemPrompt(targetLanguage: string) {
@@ -63,7 +65,8 @@ export async function translateTextBatch(texts: string[], settings: TranslationS
               { role: 'system', content: getSystemPrompt(settings.targetLanguage || 'Chinese') },
               { role: 'user', content: combinedText }
             ]
-          })
+          }),
+          signal: settings.signal
         });
         if (!response.ok) {
           const errText = await response.text();
@@ -83,7 +86,8 @@ export async function translateTextBatch(texts: string[], settings: TranslationS
             system_instruction: { parts: [{ text: getSystemPrompt(settings.targetLanguage || 'Chinese') }] },
             contents: [{ parts: [{ text: combinedText }] }],
             generationConfig: { temperature: 0 }
-          })
+          }),
+          signal: settings.signal
         });
         if (!response.ok) {
           const errText = await response.text();
@@ -92,11 +96,54 @@ export async function translateTextBatch(texts: string[], settings: TranslationS
         const data = await response.json();
         resultText = data.candidates[0].content.parts[0].text.trim();
         addLog(`Received successful response from Gemini API`, 'success');
-      } else {
-        // Mock
-        await new Promise(resolve => setTimeout(resolve, 500));
-        resultText = texts.map(t => `[译] ${t}`).join(separator);
-        if (attempt === 1) addLog(`Mock translation generated for testing`, 'info');
+      } else if (settings.provider === 'google-web') {
+        if (attempt === 1) addLog(`Sending ${texts.length} requests to Google Translate Web API`, 'info');
+        const langMap: Record<string, string> = {
+          'Chinese': 'zh-CN',
+          'Traditional Chinese': 'zh-TW',
+          'English': 'en',
+          'Japanese': 'ja',
+          'Korean': 'ko',
+          'Spanish': 'es',
+          'French': 'fr',
+          'German': 'de',
+          'Russian': 'ru'
+        };
+        const tl = langMap[settings.targetLanguage] || 'zh-CN';
+        
+        // Google Web API cannot handle %% separators reliably, translate each paragraph individually
+        // Process sequentially to avoid 429 Too Many Requests (Bot Protection)
+        const translatedParts = [];
+        for (let i = 0; i < texts.length; i++) {
+          const text = texts[i];
+          const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${tl}&dt=t`;
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'q=' + encodeURIComponent(text),
+            signal: settings.signal
+          });
+          
+          if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Google Web API Error: ${response.status} - ${errText}`);
+          }
+          
+          const data = await response.json();
+          if (data && data[0]) {
+            translatedParts.push(data[0].map((item: any) => item[0]).join(''));
+          } else {
+            translatedParts.push('[Translation Failed]');
+          }
+          
+          // Add a delay between sequential requests to avoid ban
+          if (i < texts.length - 1) {
+            await new Promise(r => setTimeout(r, 600));
+          }
+        }
+        
+        addLog(`Received successful response from Google Web API`, 'success');
+        return translatedParts;
       }
 
       const translatedParts = resultText.split('%%').map(s => s.trim());
@@ -109,6 +156,7 @@ export async function translateTextBatch(texts: string[], settings: TranslationS
       return translatedParts.slice(0, texts.length);
 
     } catch (err: any) {
+      if (settings.signal?.aborted) throw new Error('Translation aborted by user');
       if (attempt === maxRetries) {
         addLog(`Translation failed after ${maxRetries} attempts: ${err.message}`, 'error');
         return texts.map(() => `[Translation Failed]`);
@@ -166,14 +214,19 @@ export async function translateHtmlDocument(htmlString: string, settings: Transl
     });
   }
 
-  const maxConcurrency = settings.maxConcurrency || 30; // Max parallel requests
+  let maxConcurrency = settings.maxConcurrency || 30; // Max parallel requests
+  if (settings.provider === 'google-web') {
+    maxConcurrency = Math.min(maxConcurrency, 3); // Cap concurrency to prevent IP bans
+  }
   let currentIndex = 0;
 
   const processNextChunk = async (): Promise<void> => {
+    if (settings.signal?.aborted) return;
     if (currentIndex >= chunks.length) return;
     const chunk = chunks[currentIndex++];
 
     const translatedTexts = await translateTextBatch(chunk.texts, settings);
+    if (settings.signal?.aborted) return;
 
     for (let j = 0; j < chunk.elements.length; j++) {
       const el = chunk.elements[j];
@@ -205,6 +258,11 @@ export async function translateHtmlDocument(htmlString: string, settings: Transl
         el.innerHTML = translatedText;
         el.classList.add('translated');
       }
+    }
+
+    if (settings.onProgress) {
+      const serializer = new XMLSerializer();
+      settings.onProgress(serializer.serializeToString(doc));
     }
 
     return processNextChunk();
