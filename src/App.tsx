@@ -27,7 +27,8 @@ function App() {
     model: '',
     targetLanguage: 'Chinese',
     maxConcurrency: 30,
-    paragraphsPerRequest: 4
+    paragraphsPerRequest: 4,
+    glossary: ''
   });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -461,6 +462,7 @@ function App() {
                   className="form-control"
                 >
                   <option value="google-web">Google Translate (Web Free)</option>
+                  <option value="ollama">Ollama / Local API (OpenAI Compatible)</option>
                   <option value="deepseek">DeepSeek (Official)</option>
                   <option value="openai">OpenAI (Official)</option>
                   <option value="gemini">Google Gemini</option>
@@ -471,7 +473,7 @@ function App() {
               {settings.provider !== 'google-web' && (
                 <>
                   <div className="form-group">
-                    <label>API Key</label>
+                    <label>API Key {settings.provider === 'ollama' && '(Optional for Local)'}</label>
                     <input 
                       type="password" 
                       value={settings.apiKey} 
@@ -489,13 +491,14 @@ function App() {
                       className="form-control"
                       placeholder={
                         settings.provider === 'deepseek' ? 'deepseek-v4-flash' : 
+                        settings.provider === 'ollama' ? 'llama3' : 
                         settings.provider === 'openai' ? 'gpt-3.5-turbo' : 
                         (settings.provider === 'gemini' ? 'gemini-1.5-pro' : 'deepseek-chat')
                       }
                     />
                   </div>
                   <div className="form-group">
-                    <label>Custom API URL {(settings.provider !== 'custom' && settings.provider !== 'deepseek') && '(Optional)'}</label>
+                    <label>Custom API URL {(settings.provider !== 'custom' && settings.provider !== 'deepseek' && settings.provider !== 'ollama') && '(Optional)'}</label>
                     <input 
                       type="text" 
                       value={settings.apiUrl} 
@@ -503,6 +506,7 @@ function App() {
                       className="form-control"
                       placeholder={
                         settings.provider === 'custom' ? 'https://api.your-provider.com/v1/chat/completions' : 
+                        settings.provider === 'ollama' ? 'http://localhost:11434/v1/chat/completions' :
                         settings.provider === 'deepseek' ? 'https://api.deepseek.com/chat/completions' :
                         'Leave empty for default'
                       }
@@ -510,6 +514,20 @@ function App() {
                   </div>
                 </>
               )}
+              
+              <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #eee' }}>
+                <h3 style={{ fontSize: '14px', color: '#666', marginBottom: '12px' }}>Glossary & Instructions (术语表与提示词)</h3>
+                <div className="form-group">
+                  <textarea 
+                    value={settings.glossary || ''} 
+                    onChange={e => setSettings({...settings, glossary: e.target.value})}
+                    className="form-control"
+                    placeholder="Enter custom terminology or specific instructions for the AI translator. E.g.&#10;John -> 约翰&#10;Please maintain a formal tone."
+                    rows={4}
+                    style={{ resize: 'vertical' }}
+                  />
+                </div>
+              </div>
               
               <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #eee' }}>
                 <h3 style={{ fontSize: '14px', color: '#666', marginBottom: '12px' }}>Advanced Optimization</h3>

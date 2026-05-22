@@ -1,6 +1,6 @@
 export interface TranslationSettings {
   mode: 'bilingual' | 'translate-only';
-  provider: 'google-web' | 'openai' | 'gemini' | 'custom' | 'deepseek';
+  provider: 'google-web' | 'openai' | 'gemini' | 'custom' | 'deepseek' | 'ollama';
   apiKey: string;
   apiUrl: string;
   model: string;
@@ -9,21 +9,28 @@ export interface TranslationSettings {
   paragraphsPerRequest?: number;
   signal?: AbortSignal;
   onProgress?: (partialHtml: string) => void;
+  glossary?: string;
 }
 
-function getSystemPrompt(targetLanguage: string) {
-  return `You are a professional ${targetLanguage} native translator who needs to fluently translate text into ${targetLanguage}.
+function getSystemPrompt(targetLanguage: string, glossary?: string) {
+  let prompt = `You are a professional ${targetLanguage} native translator who needs to fluently translate text into ${targetLanguage}.
 
 ## Translation Rules
 1. Output only the translated content, without explanations or additional content (such as "Here's the translation:" or "Translation as follows:")
 2. The returned translation must maintain exactly the same number of paragraphs and format as the original text
 3. If the text contains HTML tags, consider where the tags should be placed in the translation while maintaining fluency
 4. For content that should not be translated (such as proper nouns, code, etc.), keep the original text.
-5. If input contains %%, use %% in your output, if input has no %%, don't use %% in your output
+5. If input contains %%, use %% in your output, if input has no %%, don't use %% in your output`;
 
-## OUTPUT FORMAT:
+  if (glossary && glossary.trim()) {
+    prompt += `\n\n## Glossary & Custom Instructions\n${glossary.trim()}`;
+  }
+
+  prompt += `\n\n## OUTPUT FORMAT:
 - **Single paragraph input** → Output translation directly (no separators, no extra text)
 - **Multi-paragraph input** → Use %% as paragraph separator between translations`;
+
+  return prompt;
 }
 
 export function addLog(message: string, type: 'info' | 'error' | 'success' = 'info') {
@@ -40,29 +47,34 @@ export async function translateTextBatch(texts: string[], settings: TranslationS
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       let resultText = '';
-      const isCustomOrOpenAI = settings.provider === 'openai' || settings.provider === 'custom' || settings.provider === 'deepseek';
+      const isCustomOrOpenAI = settings.provider === 'openai' || settings.provider === 'custom' || settings.provider === 'deepseek' || settings.provider === 'ollama';
 
       if (isCustomOrOpenAI) {
-        if (attempt === 1) addLog(`Sending request to ${settings.provider} API (Model: ${settings.model || (settings.provider === 'deepseek' ? 'deepseek-v4-flash' : 'gpt-3.5-turbo')})`, 'info');
+        if (attempt === 1) addLog(`Sending request to ${settings.provider} API (Model: ${settings.model || (settings.provider === 'deepseek' ? 'deepseek-v4-flash' : settings.provider === 'ollama' ? 'llama3' : 'gpt-3.5-turbo')})`, 'info');
 
         let url = settings.apiUrl;
         if (!url) {
           if (settings.provider === 'openai') url = 'https://api.openai.com/v1/chat/completions';
           else if (settings.provider === 'deepseek') url = 'https://api.deepseek.com/chat/completions';
+          else if (settings.provider === 'ollama') url = 'http://localhost:11434/v1/chat/completions';
           else url = 'https://api.openai.com/v1/chat/completions'; // custom fallback
+        }
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json'
+        };
+        if (settings.apiKey) {
+          headers['Authorization'] = `Bearer ${settings.apiKey}`;
         }
 
         const response = await fetch(url, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${settings.apiKey}`
-          },
+          headers,
           body: JSON.stringify({
-            model: settings.model || (settings.provider === 'deepseek' ? 'deepseek-v4-flash' : 'gpt-3.5-turbo'),
+            model: settings.model || (settings.provider === 'deepseek' ? 'deepseek-v4-flash' : settings.provider === 'ollama' ? 'llama3' : 'gpt-3.5-turbo'),
             temperature: 0,
             messages: [
-              { role: 'system', content: getSystemPrompt(settings.targetLanguage || 'Chinese') },
+              { role: 'system', content: getSystemPrompt(settings.targetLanguage || 'Chinese', settings.glossary) },
               { role: 'user', content: combinedText }
             ]
           }),
@@ -83,7 +95,7 @@ export async function translateTextBatch(texts: string[], settings: TranslationS
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            system_instruction: { parts: [{ text: getSystemPrompt(settings.targetLanguage || 'Chinese') }] },
+            system_instruction: { parts: [{ text: getSystemPrompt(settings.targetLanguage || 'Chinese', settings.glossary) }] },
             contents: [{ parts: [{ text: combinedText }] }],
             generationConfig: { temperature: 0 }
           }),
