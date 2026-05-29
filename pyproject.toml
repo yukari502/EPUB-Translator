@@ -1,0 +1,17 @@
+[project]
+name = "epub-python-translator"
+version = "0.1.0"
+description = "A compact Python EPUB translator with CLI and Tkinter GUI."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "beautifulsoup4>=4.12.0",
+  "requests>=2.31.0"
+]
+
+[project.scripts]
+epub-translator = "epub_translator.cli:main"
+epub-translator-gui = "epub_translator.gui:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

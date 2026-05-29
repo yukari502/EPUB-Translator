@@ -1,61 +1,68 @@
-# EPUB Translator
+# EPUB Python Translator
 
-A powerful, high-performance, and immersive desktop EPUB translation tool built with Electron, React, and Vite. Designed to bypass CORS restrictions natively, it allows users to translate EPUB books seamlessly using the free Google Translate Web API, DeepSeek, OpenAI, Gemini, or any custom API—all without relying on heavy backend proxies.
+This folder is a compact Python refactor of the original Electron EPUB translator.
+It keeps the core workflow while removing the Node/Electron stack:
 
-## Features
+- Open and parse EPUB files directly with `zipfile` and OPF spine metadata.
+- Translate one chapter or the whole book.
+- Export a translated EPUB while preserving untouched assets, styles, images, and metadata.
+- Use bilingual output or replace-original output.
+- Support Google Translate Web, OpenAI-compatible APIs, DeepSeek, Ollama, Gemini, and custom endpoints.
+- Reuse translation results through a local JSON cache.
+- Run as either a Tkinter desktop app or a CLI tool.
+- In bilingual mode, the original text is visually dimmed and left structurally intact; the translation is inserted as a separate block.
+- The GUI can stop translation after the current in-flight request and can show a live readable preview window while translation is running.
+- The GUI remembers provider, API key, model, API URL, mode, language, concurrency, paragraph batch size, and glossary settings.
 
-- **Full AI Model Support**: Seamlessly integrate with mainstream AI providers (OpenAI, Gemini, DeepSeek, etc.) or use any custom API endpoints.
-- **Immersive Bilingual Reading**: Translations are displayed directly beneath the original text, preserving layout and scroll position.
-- **Format Integrity**: Robust parsing ensures that original EPUB structures, images, and complex styles remain intact.
+## Install
 
-## preview
-![alt text](./images/home.png)
-![alt text](./images/proceeding.png)
-
-
-##  Quick Start
-
-### Prerequisites
-- Node.js (v18 or higher recommended)
-- npm or yarn
-
-### Installation
-
-1. Install dependencies:
 ```bash
-npm install
+cd translator
+python -m pip install -r requirements.txt
 ```
 
-2. Start the development server (Live Reloading):
+## GUI
+
 ```bash
-npm run dev
+python -m epub_translator.gui
 ```
 
-### Building for Release
+### Preview
 
-To package the application for your operating system:
+![Home preview](images/home.png)
+
+![Translation in progress preview](images/proceeding.png)
+
+## CLI
+
+Translate a whole EPUB:
+
 ```bash
-npm run build
+python -m epub_translator.cli input.epub output.epub --provider google-web --target "Chinese"
 ```
-The packaged executable (e.g., `.exe` for Windows) will be generated inside the `dist/` directory (the exact path depends on electron-builder). 
 
-##  Usage
+OpenAI-compatible example:
 
-1. **Load Book**: Click the "Open EPUB" button to load your local `.epub` file.
-2. **Settings**: Click the gear icon to open Settings. 
-   - Choose your translation provider (e.g., Google Translate Web Free, DeepSeek, OpenAI).
-   - Insert your API Key if required.
-   - Adjust concurrency levels based on your token limits.
-3. **Translate**: Select a chapter from the sidebar and click "Translate Chapter", or click "Translate All" for a full book overhaul. 
-4. **Export**: Click "Export" to download the finalized, fully translated `.epub` file directly to your system.
+```bash
+python -m epub_translator.cli input.epub output.epub ^
+  --provider openai ^
+  --api-key YOUR_KEY ^
+  --model gpt-4.1-mini ^
+  --target "Chinese" ^
+  --mode bilingual
+```
 
-## Architecture & Tech Stack
+Ollama example:
 
-- **Frontend**: React + TypeScript + Vite
-- **Desktop Runtime**: Electron + `vite-plugin-electron`
-- **EPUB Engine**: JSZip (for unpacking/repacking XML architecture)
-- **Styling**: Pure CSS (minimalist and easily modifiable)
+```bash
+python -m epub_translator.cli input.epub output.epub --provider ollama --model llama3 --target "Chinese"
+```
 
-##  License
+For OpenAI-compatible providers, `--api-url` may be either the service root or the full chat-completions URL.
+For example, `http://localhost:11434` is normalized to `http://localhost:11434/v1/chat/completions`.
 
-MIT License
+## Notes
+
+Google Web translation is free but unofficial and throttled. For long books, an API-backed provider is more stable.
+The cache file defaults to `.translation_cache.json` in the current working directory.
+GUI settings are saved as plain JSON at `~/.epub_translator/config.json`.
