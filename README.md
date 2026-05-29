@@ -29,9 +29,9 @@ python -m epub_translator.gui
 
 ### Preview
 
-![Home preview](images/home.png)
+![Home preview](images/1.png)
 
-![Translation in progress preview](images/proceeding.png)
+![Translation in progress preview](images/2.png)
 
 ## CLI
 
