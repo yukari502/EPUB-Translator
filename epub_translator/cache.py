@@ -49,3 +49,23 @@ class TranslationCache:
             tmp = self.path.with_suffix(self.path.suffix + ".tmp")
             tmp.write_text(json.dumps(self._data, ensure_ascii=False, indent=2), encoding="utf-8")
             tmp.replace(self.path)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._data.clear()
+            if self.path and self.path.exists():
+                try:
+                    self.path.unlink()
+                except OSError:
+                    pass
+
+    def load_from(self, path: Path) -> None:
+        if path.exists():
+            with self._lock:
+                try:
+                    new_data = json.loads(path.read_text(encoding="utf-8"))
+                    if isinstance(new_data, dict):
+                        self._data.update(new_data)
+                except (OSError, json.JSONDecodeError):
+                    pass
+            self.save()

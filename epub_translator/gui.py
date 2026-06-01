@@ -115,6 +115,11 @@ class TranslatorApp(tk.Tk):
         self.glossary.grid(row=2, column=1, columnspan=7, sticky="we", pady=4)
         for column in range(8):
             parent.columnconfigure(column, weight=1 if column % 2 == 1 else 0)
+            
+        cache_frame = ttk.Frame(parent)
+        cache_frame.grid(row=3, column=0, columnspan=8, sticky="w", pady=(8, 4))
+        ttk.Button(cache_frame, text="Load Cache...", command=self.load_cache).pack(side=LEFT, padx=(0, 6))
+        ttk.Button(cache_frame, text="Clear Cache", command=self.clear_cache).pack(side=LEFT)
 
     def settings(self) -> TranslationSettings:
         return TranslationSettings(
@@ -271,10 +276,38 @@ class TranslatorApp(tk.Tk):
         self.status.config(text="Stopping after current request...")
         self.stop_button.config(state=tk.DISABLED)
 
+    def load_cache(self) -> None:
+        path = filedialog.askopenfilename(filetypes=[("JSON files", "*.json"), ("All files", "*.*")])
+        if not path:
+            return
+        try:
+            self.cache.load_from(Path(path))
+            self.status.config(text=f"Loaded cache from {Path(path).name}")
+        except Exception as exc:
+            messagebox.showerror("Load cache failed", str(exc))
+
+    def clear_cache(self) -> None:
+        if messagebox.askyesno("Clear Cache", "Are you sure you want to delete all cached translations? This cannot be undone."):
+            try:
+                self.cache.clear()
+                self.status.config(text="Cache cleared")
+            except Exception as exc:
+                messagebox.showerror("Clear cache failed", str(exc))
+
     def export_epub(self) -> None:
         if not self.book:
             return
-        path = filedialog.asksaveasfilename(defaultextension=".epub", filetypes=[("EPUB files", "*.epub")])
+            
+        original_name = self.book.epub_path.stem
+        target_lang = self.target.get().replace(" ", "")
+        mode = "Bilingual" if self.mode.get() == "bilingual" else "TranslateOnly"
+        default_name = f"{original_name}_{target_lang}_{mode}.epub"
+        
+        path = filedialog.asksaveasfilename(
+            initialfile=default_name,
+            defaultextension=".epub", 
+            filetypes=[("EPUB files", "*.epub")]
+        )
         if not path:
             return
         try:
@@ -346,9 +379,9 @@ def render_preview_text(html: str) -> str:
             prefix = ""
             classes = set(tag.get("class", []))
             if "translation-block" in classes:
-                prefix = "译文: "
+                prefix = "Translation: "
             elif tag.get("data-epub-translator-original") == "1":
-                prefix = "原文: "
+                prefix = "Original: "
             blocks.append(prefix + text)
     return "\n\n".join(blocks) if blocks else soup.get_text("\n", strip=True)
 
