@@ -151,10 +151,10 @@ def apply_translation(soup: BeautifulSoup, tag: Tag, translated: str, settings: 
     if settings.mode == "bilingual":
         trans_tag = soup.new_tag(tag.name)
         trans_tag["class"] = ["translation-block", "translated"]
-        trans_tag["style"] = "color:#111;margin-top:4px;margin-bottom:4px;"
+        trans_tag["style"] = "margin-top:4px;margin-bottom:4px;"
         trans_tag.append(BeautifulSoup(translated, "html.parser"))
         tag["data-epub-translator-original"] = "1"
-        append_style(tag, "color:#777;opacity:.72;margin-top:0;margin-bottom:12px;")
+        append_style(tag, "opacity:0.6;margin-top:0;margin-bottom:12px;")
         tag.insert_before(trans_tag)
     else:
         tag.clear()
