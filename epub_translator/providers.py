@@ -33,7 +33,7 @@ def system_prompt(target_language: str, glossary: str = "") -> str:
     prompt = f"""You are a professional {target_language} native translator.
 
 Translation rules:
-1. Output only the translated content.
+1. Output ONLY the translated content. MUST strictly use the exact {target_language} script and dialect. Do not mix scripts (e.g., if Traditional Chinese is requested, absolutely no Simplified Chinese characters are allowed; if Simplified Chinese is requested, use only 简体中文).
 2. Keep exactly the same number of paragraphs as the input.
 3. Preserve the original HTML structure exactly: do not add, remove, rename, reorder, or simplify tags and attributes.
 4. Translate only human-readable text nodes. Keep code, URLs, placeholders, entities, punctuation-only text, and proper nouns unchanged when appropriate.
@@ -123,8 +123,11 @@ class OpenAICompatibleProvider(TranslationProvider):
             },
         )
         data = response.json()
-        content = data["choices"][0]["message"]["content"].strip()
-        return normalize_parts(content, len(texts))
+        try:
+            content = data["choices"][0]["message"]["content"].strip()
+        except (KeyError, IndexError):
+            return texts
+        return normalize_parts(content, texts)
 
     def _chat_completions_url(self) -> str:
         url = (self.settings.api_url or self.DEFAULT_URLS.get(self.settings.provider, "")).strip()
@@ -168,14 +171,18 @@ class GeminiProvider(TranslationProvider):
             },
         )
         data = response.json()
-        content = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-        return normalize_parts(content, len(texts))
+        try:
+            content = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        except (KeyError, IndexError):
+            return texts
+        return normalize_parts(content, texts)
 
 
-def normalize_parts(content: str, expected: int) -> list[str]:
+def normalize_parts(content: str, texts: list[str]) -> list[str]:
+    expected = len(texts)
     parts = [part.strip() for part in content.split("%%")]
     if len(parts) < expected:
-        parts.extend("[Translation Missing]" for _ in range(expected - len(parts)))
+        parts.extend(texts[len(parts):])
     return parts[:expected]
 
 

@@ -26,7 +26,7 @@ def translate_html(
     preview: PreviewCallback | None = None,
     cancel_event: Event | None = None,
 ) -> str:
-    soup = BeautifulSoup(remove_scripts(html), "html.parser")
+    soup = BeautifulSoup(remove_scripts(html), "xml")
     targets = collect_targets(soup)
     if not targets:
         return str(soup)
@@ -106,7 +106,7 @@ def is_cancelled(cancel_event: Event | None) -> bool:
 
 
 def remove_scripts(html: str) -> str:
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(html, "xml")
     for script in soup.find_all("script"):
         script.decompose()
     return str(soup)

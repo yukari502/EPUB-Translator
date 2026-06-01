@@ -229,7 +229,8 @@ class TranslatorApp(tk.Tk):
                         return
                 self.events.put(("done", "Translation complete"))
             except Exception as exc:
-                self.events.put(("error", str(exc)))
+                import traceback
+                self.events.put(("error", traceback.format_exc()))
 
         threading.Thread(target=worker, daemon=True).start()
 
