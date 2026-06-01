@@ -11,12 +11,12 @@ TranslationMode = Literal["bilingual", "translate-only"]
 
 @dataclass(slots=True)
 class TranslationSettings:
-    mode: TranslationMode = "translate-only"
+    mode: TranslationMode = "bilingual"
     provider: ProviderName = "google-web"
     api_key: str = ""
     api_url: str = ""
     model: str = ""
-    target_language: str = "Chinese"
+    target_language: str = "Traditional Chinese"
     max_concurrency: int = 4
     paragraphs_per_request: int = 4
     glossary: str = ""

@@ -1,68 +1,99 @@
 # EPUB Python Translator
 
-This folder is a compact Python refactor of the original Electron EPUB translator.
-It keeps the core workflow while removing the Node/Electron stack:
+A compact and dependency-free Python tool for translating EPUB files. It preserves the core workflow of the original Electron-based application, while completely removing the heavy Node/Electron stack.
 
-- Open and parse EPUB files directly with `zipfile` and OPF spine metadata.
-- Translate one chapter or the whole book.
-- Export a translated EPUB while preserving untouched assets, styles, images, and metadata.
-- Use bilingual output or replace-original output.
-- Support Google Translate Web, OpenAI-compatible APIs, DeepSeek, Ollama, Gemini, and custom endpoints.
-- Reuse translation results through a local JSON cache.
-- Run as either a Tkinter desktop app or a CLI tool.
-- In bilingual mode, the original text is visually dimmed and left structurally intact; the translation is inserted as a separate block.
-- The GUI can stop translation after the current in-flight request and can show a live readable preview window while translation is running.
-- The GUI remembers provider, API key, model, API URL, mode, language, concurrency, paragraph batch size, and glossary settings.
+## ✨ Features
 
-## Install
+- **Direct EPUB Processing**: Open and parse EPUB files natively using `zipfile` and OPF spine metadata.
+- **Flexible Translation Scope**: Translate a single chapter or process the entire book automatically.
+- **Preserve Formatting**: Exports a translated EPUB while keeping all original assets, CSS styles, images, and metadata completely untouched.
+- **Translation Modes**: 
+  - **Bilingual Mode (Default)**: The original text is visually dimmed and kept structurally intact, while the translation is cleanly inserted as a separate block below it.
+  - **Translate-Only Mode**: Replaces the original text entirely with the translation.
+- **Multiple API Providers**: Supports Google Translate Web, OpenAI-compatible APIs, DeepSeek, Ollama, Gemini, and custom endpoints.
+- **Translation Cache**: Prevents duplicate API requests and saves costs by reusing translation results through a local `.translation_cache.json` file.
+- **Local Config Encryption**: Sensitive API keys in your `config.json` are encrypted securely locally.
+- **Intuitive GUI**: A lightweight Tkinter desktop interface that:
+  - Supports live readable preview windows during translation.
+  - Allows you to safely stop the translation after the current in-flight request.
+  - Remembers your provider, API keys, endpoints, language targets, concurrency, and glossary settings automatically.
+- **CLI Support**: Fully automatable via the command line interface.
+
+---
+
+## 🚀 Installation & Setup
+
+1. Make sure you have Python 3.10+ installed.
+2. Install the required dependencies:
 
 ```bash
-cd translator
 python -m pip install -r requirements.txt
 ```
 
-## GUI
+---
+
+## 💻 Usage
+
+### GUI App
+Run the Tkinter-based desktop interface:
 
 ```bash
-python -m epub_translator.gui
+python gui_launcher.py
 ```
 
-### Preview
+#### Previews
 
 ![Home preview](images/1.png)
 
 ![Translation in progress preview](images/2.png)
 
-## CLI
+### CLI Tool
+For automated or headless usage, use `epub_translator.cli`:
 
-Translate a whole EPUB:
-
+**Translate a whole EPUB (Default: Traditional Chinese, Bilingual):**
 ```bash
-python -m epub_translator.cli input.epub output.epub --provider google-web --target "Chinese"
+python -m epub_translator.cli input.epub output.epub --provider google-web
 ```
 
-OpenAI-compatible example:
-
+**OpenAI-compatible example:**
 ```bash
 python -m epub_translator.cli input.epub output.epub ^
   --provider openai ^
   --api-key YOUR_KEY ^
-  --model gpt-4.1-mini ^
-  --target "Chinese" ^
+  --model gpt-4o-mini ^
+  --target "Simplified Chinese" ^
   --mode bilingual
 ```
 
-Ollama example:
-
+**Ollama example:**
 ```bash
-python -m epub_translator.cli input.epub output.epub --provider ollama --model llama3 --target "Chinese"
+python -m epub_translator.cli input.epub output.epub --provider ollama --model llama3
 ```
 
-For OpenAI-compatible providers, `--api-url` may be either the service root or the full chat-completions URL.
-For example, `http://localhost:11434` is normalized to `http://localhost:11434/v1/chat/completions`.
+> **Note:** For OpenAI-compatible providers, `--api-url` may be either the service root or the full chat-completions URL.
+> For example, `http://localhost:11434` is automatically normalized to `http://localhost:11434/v1/chat/completions`.
 
-## Notes
+---
 
-Google Web translation is free but unofficial and throttled. For long books, an API-backed provider is more stable.
-The cache file defaults to `.translation_cache.json` in the current working directory.
-GUI settings are saved as plain JSON at `~/.epub_translator/config.json`.
+## 📦 Building the Executable
+
+You can compile the app into a single, portable Windows executable (`.exe`) that doesn't require users to have Python installed.
+
+1. Install PyInstaller:
+```bash
+python -m pip install pyinstaller
+```
+
+2. Build the app (the output will be saved to the `release` folder):
+```bash
+pyinstaller --noconfirm --onefile --windowed --name "EPUB-Translator" --distpath release gui_launcher.py
+```
+
+Once the build finishes, you will find `EPUB-Translator.exe` inside the `release` folder. You can move this `.exe` file anywhere—your configuration and caches will be generated securely in the same directory as the executable.
+
+---
+
+## 📝 Notes
+
+- **Google Web Provider**: This translation is free but unofficial and heavily throttled. For full-length books, using an API-backed provider (like DeepSeek, Gemini, or OpenAI) is highly recommended for stability.
+- **Config Storage**: GUI settings are securely encrypted and saved locally in `config.json` next to your executable or script.
