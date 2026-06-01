@@ -19,7 +19,7 @@ from .settings import TranslationSettings
 
 
 PROVIDERS = ["google-web", "ollama", "deepseek", "openai", "gemini", "custom"]
-LANGUAGES = ["Chinese", "Traditional Chinese", "English", "Japanese", "Korean", "Spanish", "French", "German", "Russian"]
+LANGUAGES = ["Simplified Chinese", "Traditional Chinese", "English", "Japanese", "Korean", "Spanish", "French", "German", "Russian"]
 
 
 class TranslatorApp(tk.Tk):

@@ -135,11 +135,14 @@ class OpenAICompatibleProvider(TranslationProvider):
         parsed = urlparse(url)
         if not parsed.scheme or not parsed.netloc:
             raise ValueError(f"Invalid API URL: {url}")
-        if url.rstrip("/").endswith("/chat/completions"):
+        url_stripped = url.rstrip("/")
+        if url_stripped.endswith("/chat/completions"):
             return url
         if self.settings.provider == "deepseek":
-            return url.rstrip("/") + "/chat/completions"
-        return url.rstrip("/") + "/v1/chat/completions"
+            return url_stripped + "/chat/completions"
+        if url_stripped.endswith("/v1"):
+            return url_stripped + "/chat/completions"
+        return url_stripped + "/v1/chat/completions"
 
 
 class GeminiProvider(TranslationProvider):
