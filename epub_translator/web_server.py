@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import os
+import sys
 import webbrowser
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -50,7 +51,10 @@ class AppState:
 state = AppState()
 
 # Determine web directory
-WEB_DIR = Path(__file__).parent / "web"
+if getattr(sys, 'frozen', False):
+    WEB_DIR = Path(sys._MEIPASS) / "web"
+else:
+    WEB_DIR = Path(__file__).parent / "web"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

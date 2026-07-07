@@ -2,10 +2,10 @@
 
 
 a = Analysis(
-    ['gui_launcher.py'],
+    ['epub_translator\\web_server.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('epub_translator/web', 'web')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
