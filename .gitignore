@@ -11,8 +11,15 @@ release/
 
 # Caches
 .translation_cache.json
+.analysis_cache.json
 
 # Local Configuration (IMPORTANT: never commit config.json)
 config.json
 *.tmp
 venv/
+
+
+
+#cache
+.translation_cache.json
+.analysis_cache.json

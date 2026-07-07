@@ -100,10 +100,24 @@ function renderChapterList() {
   currentChapters.forEach((ch, idx) => {
     const div = document.createElement('div');
     div.className = 'chapter-item' + (idx === activeChapterIndex ? ' active' : '');
-    div.innerHTML = `<span>${ch.index}. ${ch.title}</span> <span class="chapter-status" id="status-${idx}">Pending</span>`;
+    const statusText = ch.statusText || 'Pending';
+    const statusClass = ch.statusClass || 'chapter-status';
+    div.innerHTML = `<span>${ch.index}. ${ch.title}</span> <span class="${statusClass}" id="status-${idx}">${statusText}</span>`;
     div.onclick = () => loadChapter(idx);
     elements.chapterList.appendChild(div);
   });
+}
+
+function updateChapterStatus(idx, text, className) {
+  if (idx >= 0 && idx < currentChapters.length) {
+    currentChapters[idx].statusText = text;
+    currentChapters[idx].statusClass = className;
+  }
+  const statusEl = document.getElementById(`status-${idx}`);
+  if (statusEl) {
+    statusEl.innerText = text;
+    statusEl.className = className;
+  }
 }
 
 async function loadChapter(index) {
@@ -312,6 +326,9 @@ function startTranslation(mode = 'all') {
 function stopTranslation() {
   if (ws) {
     ws.send(JSON.stringify({ action: 'stop' }));
+    elements.btnStop.innerText = 'Stopping...';
+    elements.btnStop.disabled = true;
+    elements.btnStop.style.opacity = '0.7';
   }
 }
 
@@ -343,8 +360,7 @@ function handleWsMessage(msg, mode) {
     }
     
     if (chapter_index !== undefined) {
-      const statusEl = document.getElementById(`status-${chapter_index}`);
-      if (statusEl) statusEl.innerText = 'Translating';
+      updateChapterStatus(chapter_index, 'Translating', 'chapter-status');
       
       // Live preview update
       if (msg.live_html && chapter_index === activeChapterIndex) {
@@ -371,11 +387,8 @@ function handleWsMessage(msg, mode) {
     }
   } else if (msg.type === 'chapter_done') {
     const { chapter_index, html, path } = msg;
-    const statusEl = document.getElementById(`status-${chapter_index}`);
-    if (statusEl) {
-      statusEl.innerText = 'Done';
-      statusEl.className = 'chapter-status done';
-    }
+    updateChapterStatus(chapter_index, 'Done', 'chapter-status done');
+    
     if (chapter_index === activeChapterIndex) {
       renderPreview(html, path);
     }
@@ -388,6 +401,9 @@ function handleWsMessage(msg, mode) {
     translationActive = false;
     elements.btnTranslateAll.classList.remove('hidden');
     elements.btnStop.classList.add('hidden');
+    elements.btnStop.innerText = 'Stop Translation';
+    elements.btnStop.disabled = false;
+    elements.btnStop.style.opacity = '1';
     elements.btnExport.classList.remove('hidden');
   } else if (msg.type === 'error') {
     alert('Translation error: ' + msg.message);
