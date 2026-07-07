@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import time
+import asyncio
 from abc import ABC, abstractmethod
 from typing import Any
 from urllib.parse import urlparse
 
-import requests
+import httpx
 
 from .settings import TranslationSettings
 
@@ -49,30 +49,31 @@ class TranslationProvider(ABC):
         self.settings = settings
 
     @abstractmethod
-    def translate_batch(self, texts: list[str]) -> list[str]:
+    async def translate_batch(self, texts: list[str]) -> list[str]:
         raise NotImplementedError
 
-    def _request_with_retries(self, method: str, url: str, **kwargs: Any) -> requests.Response:
+    async def _request_with_retries(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         last_error: Exception | None = None
-        for attempt in range(1, self.settings.retries + 1):
-            try:
-                response = requests.request(method, url, timeout=self.settings.timeout, **kwargs)
-                if response.ok:
-                    return response
-                last_error = RuntimeError(f"HTTP {response.status_code}: {response.text[:500]}")
-            except requests.RequestException as exc:
-                last_error = exc
-            if attempt < self.settings.retries:
-                time.sleep(2 ** (attempt - 1))
+        async with httpx.AsyncClient(timeout=self.settings.timeout) as client:
+            for attempt in range(1, self.settings.retries + 1):
+                try:
+                    response = await client.request(method, url, **kwargs)
+                    if response.is_success:
+                        return response
+                    last_error = RuntimeError(f"HTTP {response.status_code}: {response.text[:500]}")
+                except httpx.RequestError as exc:
+                    last_error = exc
+                if attempt < self.settings.retries:
+                    await asyncio.sleep(2 ** (attempt - 1))
         raise RuntimeError(str(last_error or "request failed"))
 
 
 class GoogleWebProvider(TranslationProvider):
-    def translate_batch(self, texts: list[str]) -> list[str]:
+    async def translate_batch(self, texts: list[str]) -> list[str]:
         target = LANGUAGE_CODES.get(self.settings.target_language, "zh-CN")
         results: list[str] = []
         for index, text in enumerate(texts):
-            response = self._request_with_retries(
+            response = await self._request_with_retries(
                 "POST",
                 "https://translate.googleapis.com/translate_a/single",
                 params={"client": "gtx", "sl": "auto", "tl": target, "dt": "t"},
@@ -85,7 +86,7 @@ class GoogleWebProvider(TranslationProvider):
             else:
                 results.append("[Translation Failed]")
             if index < len(texts) - 1:
-                time.sleep(0.6)
+                await asyncio.sleep(0.6)
         return results
 
 
@@ -103,13 +104,13 @@ class OpenAICompatibleProvider(TranslationProvider):
         "custom": "gpt-4.1-mini",
     }
 
-    def translate_batch(self, texts: list[str]) -> list[str]:
+    async def translate_batch(self, texts: list[str]) -> list[str]:
         url = self._chat_completions_url()
         model = self.settings.model or self.DEFAULT_MODELS.get(self.settings.provider, self.DEFAULT_MODELS["openai"])
         headers = {"Content-Type": "application/json"}
         if self.settings.api_key:
             headers["Authorization"] = f"Bearer {self.settings.api_key}"
-        response = self._request_with_retries(
+        response = await self._request_with_retries(
             "POST",
             url,
             headers=headers,
@@ -149,7 +150,7 @@ class OpenAICompatibleProvider(TranslationProvider):
 
 
 class GeminiProvider(TranslationProvider):
-    def translate_batch(self, texts: list[str]) -> list[str]:
+    async def translate_batch(self, texts: list[str]) -> list[str]:
         model = self.settings.model or "gemini-1.5-pro"
         url = self.settings.api_url or (
             f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
@@ -157,7 +158,7 @@ class GeminiProvider(TranslationProvider):
         params = {}
         if self.settings.api_key and "key=" not in url:
             params["key"] = self.settings.api_key
-        response = self._request_with_retries(
+        response = await self._request_with_retries(
             "POST",
             url,
             params=params,
