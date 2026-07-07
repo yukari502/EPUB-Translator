@@ -1,0 +1,27 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller
+build/
+dist/
+release/
+*.spec
+
+# Caches
+.translation_cache.json
+.analysis_cache.json
+
+# Local Configuration (IMPORTANT: never commit config.json)
+config.json
+*.tmp
+venv/
+
+
+
+
+# portable python
+python-portable/
+python-portable.zip
+get-pip.py

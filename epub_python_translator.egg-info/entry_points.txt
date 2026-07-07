@@ -1,0 +1,3 @@
+[console_scripts]
+epub-translator = epub_translator.cli:main
+epub-translator-gui = epub_translator.web_server:main

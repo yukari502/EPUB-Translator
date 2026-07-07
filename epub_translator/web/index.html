@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EPUB Translator</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="header" style="padding: 0 0 20px 0; border: none; background: transparent;">
+        <h1>EPUB Translator</h1>
+      </div>
+      
+      <h2>Settings</h2>
+      
+      <div class="form-group">
+        <label for="provider">Provider</label>
+        <select id="provider" class="form-control">
+          <option value="google-web">Google Web (Free)</option>
+          <option value="openai">OpenAI Compatible</option>
+          <option value="gemini">Gemini</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="ollama">Ollama (Local)</option>
+          <option value="custom">Custom URL</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label for="target_language">Target Language</label>
+        <select id="target_language" class="form-control">
+          <option value="Simplified Chinese">Simplified Chinese</option>
+          <option value="Traditional Chinese">Traditional Chinese</option>
+          <option value="English">English</option>
+          <option value="Japanese">Japanese</option>
+          <option value="Korean">Korean</option>
+          <option value="Spanish">Spanish</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label for="mode">Translation Mode</label>
+        <select id="mode" class="form-control">
+          <option value="bilingual">Bilingual</option>
+          <option value="translate-only">Translate Only</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="model">Model ID</label>
+        <input type="text" id="model" class="form-control" placeholder="e.g. gpt-4o-mini">
+      </div>
+      
+      <div class="form-group">
+        <label for="api_url">API URL</label>
+        <input type="text" id="api_url" class="form-control" placeholder="https://api.openai.com/v1/...">
+      </div>
+      
+      <div class="form-group">
+        <label for="api_key">API Key</label>
+        <input type="password" id="api_key" class="form-control" placeholder="sk-...">
+      </div>
+
+      <div class="form-group" style="display: flex; gap: 10px;">
+        <div style="flex: 1;">
+          <label for="concurrency">Concurrency</label>
+          <input type="number" id="concurrency" class="form-control" value="4" min="1" max="100">
+        </div>
+        <div style="flex: 1;">
+          <label for="paragraphs">Paragraphs/Req</label>
+          <input type="number" id="paragraphs" class="form-control" value="10" min="1" max="50">
+        </div>
+      </div>
+
+      <div class="actions">
+        <div class="sidebar-section">
+          <h3>Cache Management</h3>
+          <div class="form-group" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button id="clearCacheBtn" class="btn btn-secondary" style="flex: 1 0 45%;">Clear Cache</button>
+            <button id="importCacheBtn" class="btn btn-secondary" style="flex: 1 0 45%;">Import</button>
+            <button id="exportCacheBtn" class="btn btn-secondary" style="flex: 1 0 100%; margin-top: 5px;">Export Cache</button>
+            <input type="file" id="cacheFileInput" accept=".json" style="display: none;" />
+          </div>
+        </div>
+        
+        <button id="btn-save-settings" class="btn btn-primary" style="background: rgba(255,255,255,0.1); color: var(--text-main);">Save Settings</button>
+        <button id="btn-export" class="btn btn-success hidden">Export EPUB</button>
+        <button id="btn-stop" class="btn btn-danger hidden">Stop Translation</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      
+      <!-- Upload State -->
+      <div id="upload-area" class="upload-area">
+        <div id="drop-zone" class="drop-zone">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+          </svg>
+          <p>Drag and drop EPUB file here</p>
+          <p style="font-size: 0.85rem; margin-top: 8px;">or click to browse</p>
+          <input type="file" id="file-input" accept=".epub" class="hidden">
+        </div>
+      </div>
+
+      <!-- Workspace State -->
+      <div id="workspace" class="workspace">
+        
+        <!-- Progress Bar (Global) -->
+        <div class="progress-container">
+          <div class="progress-header">
+            <span id="progress-text">Ready to translate</span>
+            <span id="progress-percentage">0%</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div id="progress-bar-fill" class="progress-bar-fill"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+             <button id="btn-translate-all" class="btn btn-primary" style="width: auto; padding: 6px 16px;">▶ Translate All Chapters</button>
+             <span id="progress-stats" style="font-size: 0.8rem; color: var(--text-muted); align-self: flex-end;"></span>
+          </div>
+        </div>
+
+        <!-- Editor/Reader -->
+        <div class="editor-container">
+          <!-- Chapter List -->
+          <div class="chapter-list" id="chapter-list">
+            <!-- Populated via JS -->
+          </div>
+          
+          <!-- Preview Area -->
+          <div class="preview-area">
+            <div id="preview-content" class="preview-content">
+              Select a chapter to preview...
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+  <script src="/static/app.js?v=10"></script>
+</body>
+</html>
