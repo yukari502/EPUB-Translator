@@ -337,12 +337,15 @@ async function exportEpub() {
 }
 
 let startTime = 0;
+let progressHistory = [];
+
 function handleWsMessage(msg, mode) {
   if (msg.type === 'init') {
     elements.progressBarFill.style.width = '0%';
     elements.progressPercentage.innerText = '0%';
     elements.progressText.innerText = 'Analyzing full book...';
     startTime = Date.now();
+    progressHistory = [];
   } else if (msg.type === 'progress') {
     const { done, total, chapter_index } = msg;
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -351,12 +354,30 @@ function handleWsMessage(msg, mode) {
     elements.progressPercentage.innerText = `${pct}%`;
     elements.progressText.innerText = `Translating...`;
     
-    // Estimate remaining time
-    if (done > 0) {
-      const elapsed = (Date.now() - startTime) / 1000;
-      const rate = done / elapsed;
+    // Estimate remaining time using a sliding window (e.g., last 15 seconds)
+    const now = Date.now();
+    progressHistory.push({ time: now, done: done });
+    progressHistory = progressHistory.filter(p => now - p.time <= 15000);
+    
+    let rate = 0;
+    if (progressHistory.length > 1) {
+      const oldest = progressHistory[0];
+      const elapsed = (now - oldest.time) / 1000;
+      if (elapsed > 0) {
+        rate = (done - oldest.done) / elapsed;
+      }
+    }
+    
+    if (rate > 0) {
       const remaining = (total - done) / rate;
       elements.progressStats.innerText = `Speed: ${rate.toFixed(1)} blocks/s | ETA: ${Math.round(remaining)}s`;
+    } else if (done > 0) {
+      const elapsedGlobal = (now - startTime) / 1000;
+      rate = elapsedGlobal > 0 ? done / elapsedGlobal : 0;
+      if (rate > 0) {
+        const remaining = (total - done) / rate;
+        elements.progressStats.innerText = `Speed: ${rate.toFixed(1)} blocks/s | ETA: ${Math.round(remaining)}s`;
+      }
     }
     
     if (chapter_index !== undefined) {
