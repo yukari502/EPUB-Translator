@@ -136,6 +136,8 @@ def collect_targets(soup: BeautifulSoup) -> list[Tag]:
             continue
         if tag.get("data-epub-translator-original") == "1":
             continue
+        if tag.find_parent(attrs={"data-epub-translator-original": "1"}):
+            continue
         if tag.find_parent(class_="translation-block"):
             continue
         if has_selected_parent(tag, targets):

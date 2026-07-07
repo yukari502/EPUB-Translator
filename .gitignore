@@ -23,3 +23,8 @@ venv/
 #cache
 .translation_cache.json
 .analysis_cache.json
+
+# portable python
+python-portable/
+python-portable.zip
+get-pip.py
