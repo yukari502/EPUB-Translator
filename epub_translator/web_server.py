@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
+import hashlib
 import io
+import json
 import os
 import webbrowser
 from contextlib import asynccontextmanager
@@ -28,6 +31,21 @@ class AppState:
         self.book: EpubBook | None = None
         self.settings = settings_from_config(load_config())
         self.cache = TranslationCache(Path(".translation_cache.json"))
+        self.analysis_cache: dict[str, int] = {}
+        self.analysis_cache_path = Path(".analysis_cache.json")
+        if self.analysis_cache_path.exists():
+            try:
+                with open(self.analysis_cache_path, "r", encoding="utf-8") as f:
+                    self.analysis_cache = json.load(f)
+            except Exception:
+                pass
+                
+    def save_analysis_cache(self):
+        try:
+            with open(self.analysis_cache_path, "w", encoding="utf-8") as f:
+                json.dump(self.analysis_cache, f)
+        except Exception:
+            pass
 
 state = AppState()
 
@@ -203,12 +221,33 @@ async def websocket_translate(websocket: WebSocket, mode: str = "all"):
         # Calculate global text targets for accurate progress
         total_targets = 0
         chapter_targets = {}
-        for index, chapter in enumerate(state.book.chapters):
-            html = state.book.read_text(chapter.path)
-            soup = BeautifulSoup(remove_scripts(html), "xml")
-            targets = collect_targets(soup)
-            chapter_targets[index] = len(targets)
-            total_targets += len(targets)
+        
+        loop = asyncio.get_running_loop()
+        
+        def analyze_chapter(index: int, chapter_path: str) -> tuple[int, int]:
+            html_text = state.book.read_text(chapter_path)
+            html_hash = hashlib.md5(html_text.encode("utf-8")).hexdigest()
+            if html_hash in state.analysis_cache:
+                return index, state.analysis_cache[html_hash]
+                
+            soup_obj = BeautifulSoup(remove_scripts(html_text), "xml")
+            targs = collect_targets(soup_obj)
+            count = len(targs)
+            state.analysis_cache[html_hash] = count
+            return index, count
+
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            tasks = [
+                loop.run_in_executor(pool, analyze_chapter, index, chapter.path)
+                for index, chapter in enumerate(state.book.chapters)
+            ]
+            results = await asyncio.gather(*tasks)
+
+        for index, count in results:
+            chapter_targets[index] = count
+            total_targets += count
+            
+        state.save_analysis_cache()
             
         global_completed = 0
         

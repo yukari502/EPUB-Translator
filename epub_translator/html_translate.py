@@ -48,6 +48,7 @@ async def translate_html(
     pending_texts: list[str] = []
 
     # First, apply cache
+    cache_applied = False
     for text in unique_texts:
         if cancel_event and cancel_event.is_set():
             return str(soup)
@@ -57,12 +58,18 @@ async def translate_html(
             for tag in text_to_tags[text]:
                 apply_translation(soup, tag, cached, settings)
                 completed_tags += 1
+                cache_applied = True
                 if progress:
-                    res = progress(completed_tags, total_tags, "cache", str(soup))
+                    res = progress(completed_tags, total_tags, "cache", "")
                     if asyncio.iscoroutine(res):
                         await res
         else:
             pending_texts.append(text)
+
+    if cache_applied and progress:
+        res = progress(completed_tags, total_tags, "cache_update", str(soup))
+        if asyncio.iscoroutine(res):
+            await res
 
     if not pending_texts or cache_only:
         cache.save()
@@ -86,6 +93,7 @@ async def translate_html(
             chunk = await queue.get()
             try:
                 translations = await provider.translate_batch(chunk)
+                updated_in_chunk = False
                 for text, translated in zip(chunk, translations):
                     if cancel_event and cancel_event.is_set():
                         break
@@ -95,10 +103,12 @@ async def translate_html(
                         for tag in text_to_tags[text]:
                             apply_translation(soup, tag, translated, settings)
                             completed_tags += 1
-                            if progress:
-                                res = progress(completed_tags, total_tags, "translated", str(soup))
-                                if asyncio.iscoroutine(res):
-                                    await res
+                            updated_in_chunk = True
+                            
+                if updated_in_chunk and progress:
+                    res = progress(completed_tags, total_tags, "translated", str(soup))
+                    if asyncio.iscoroutine(res):
+                        await res
             except Exception as e:
                 print(f"Translation batch error: {e}")
             finally:

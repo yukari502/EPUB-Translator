@@ -18,5 +18,8 @@ dependencies = [
 epub-translator = "epub_translator.cli:main"
 epub-translator-gui = "epub_translator.web_server:main"
 
+[tool.setuptools.packages.find]
+include = ["epub_translator*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

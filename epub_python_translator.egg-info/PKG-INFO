@@ -1,0 +1,40 @@
+Metadata-Version: 2.4
+Name: epub-python-translator
+Version: 0.1.0
+Summary: A compact Python EPUB translator with CLI and Tkinter GUI.
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: beautifulsoup4>=4.12.0
+Requires-Dist: lxml>=4.9.0
+Requires-Dist: fastapi>=0.110.0
+Requires-Dist: uvicorn>=0.29.0
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: python-multipart>=0.0.9
+Requires-Dist: websockets>=12.0
+
+# EPUB Translator
+
+A lightweight, modern Python tool to translate EPUB files using LLMs (OpenAI, Gemini, DeepSeek, etc.) directly in your browser.
+
+## Features
+- **Extremely fast and lightweight**: Uses a modern FastAPI + AsyncIO backend, avoiding slow Tkinter GUIs.
+- **Deduplication Engine**: Caches paragraphs and removes duplicates before sending to LLMs, reducing token costs and translation time by up to 50%.
+- **Live Translation Preview**: A WYSIWYG (What You See Is What You Get) reader directly in the browser. See translations appear block-by-block.
+- **Dynamic Bilingual Mode**: Switch between Bilingual and Translation Only modes instantly, without re-translating.
+- **One-Click Startup**: Auto-creates virtual environments and installs dependencies automatically.
+
+## Quick Start (Windows)
+1. Double click `start.bat`.
+2. It will automatically download dependencies and open the translation web UI in your browser.
+
+## Supported Providers
+- **Google Web** (Free, no API key required)
+- **OpenAI Compatible** (ChatGPT, Claude, etc)
+- **Gemini** (Google API)
+- **DeepSeek**
+- **Ollama** (Local models)
+- **Custom API**
+
+## Cache Management
+- Translations are cached locally to `.translation_cache.json` so you never pay twice for the same sentence.
+- You can Export/Import caches to share translation progress across devices.
